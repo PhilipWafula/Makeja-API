@@ -1,0 +1,16 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+
+development:
+  <<: *default
+  database: makeja_development
+  username: postgres # replace with your cool user name
+  password: ENV['DATABASE_PASSWORD'] # replace with your un-hackable password
+
+test:
+  <<: *default
+  database: makeja_test
+  username: postgres # replace with your cool user name
+  password: ENV['DATABASE_PASSWORD'] # replace with your un-hackable password
