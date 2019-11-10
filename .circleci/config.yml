@@ -1,0 +1,110 @@
+version: 2
+defaults: &defaults
+  working_directory: ~/repo
+  parallelism: 4
+  shell: /bin/bash --login
+  environment:
+    RAILS_ENV: test
+    RACK_ENV: test
+    COVERAGE: true
+    TZ: /usr/share/zoneinfo/Africa/Nairobi
+  docker:
+    # rails
+    - image: circleci/ruby:2.5.7-node-browsers
+      environment:
+        PGHOST: 127.0.0.1
+        PGUSER: postgres
+    # postgres
+    - image: circleci/postgres:10.10
+      environment:
+        POSTGRES_USER: postgres
+        POSTGRES_DB: makeja_test
+    # redis
+    - image: redis:4.0.9
+jobs:
+  build:
+    <<: *defaults
+    steps:
+      - run:
+          name: Download cc-test-reporter
+          command: |
+            mkdir -p tmp/
+            curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./tmp/cc-test-reporter
+            chmod +x ./tmp/cc-test-reporter
+      - persist_to_workspace:
+          root: tmp
+          paths:
+            - cc-test-reporter
+  api-tests:
+    <<: *defaults
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/repo/tmp
+      # download and cache dependencies
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "Gemfile.lock" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+      - run:
+          name: Install dependencies
+          command: |
+            bundle install --jobs=4 --retry=3 --path vendor/bundle
+      - save_cache:
+          paths:
+            - ./vendor/bundle
+          key: v1-dependencies-{{ checksum "Gemfile.lock" }}
+      - run:
+          name: Install system libraries
+          command: sudo apt-get update && sudo apt-get -y install imagemagick postgresql-client
+      - run:
+          name: Set up database
+          command: |
+            cp config/database.sample.yml config/database.yml
+            bundle exec rake db:create
+            bundle exec rake db:setup
+      - run:
+          name: Run api tests
+          command: |
+            mkdir /tmp/test-results
+            TEST_FILES="$(circleci tests glob "spec/**/*_spec.rb" | \
+                          circleci tests split --split-by=timings)"
+            bundle exec rspec \
+              --format progress \
+              --format RspecJunitFormatter \
+              --out /tmp/test-results/rspec.xml \
+              --format progress \
+              $TEST_FILES
+            ./tmp/cc-test-reporter format-coverage -t simplecov -o tmp/codeclimate.api.json ./tmp/coverage/api/.resultset.json
+      - persist_to_workspace:
+          root: tmp
+          paths:
+            - codeclimate.api.json
+      - store_test_results:
+          path: /tmp/test-results
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: test-results
+
+  upload-coverage:
+    <<: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/repo/tmp
+      - run:
+          name: Upload coverage results to CC
+          command: |
+            ./tmp/cc-test-reporter upload-coverage --debug -i tmp/codeclimate.api.json
+workflows:
+  version: 2
+
+  commit:
+    jobs:
+      - build
+      - api-tests:
+          requires:
+            - build
+      - upload-coverage:
+          requires:
+            - api-tests
