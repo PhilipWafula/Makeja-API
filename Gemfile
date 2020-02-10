@@ -9,7 +9,7 @@ end
 ruby '2.5.7'
 gem 'active_model_serializers'
 gem 'devise'
-gem 'doorkeeper', '~> 5.2'
+gem 'doorkeeper', '~> 5.3'
 gem 'jsonapi-rails'
 gem 'pg', '>= 0.18', '< 2.0'
 gem 'phony_rails'
