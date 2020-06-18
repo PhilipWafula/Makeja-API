@@ -15,7 +15,7 @@ gem 'pg', '>= 0.18', '< 2.0'
 gem 'phony_rails'
 gem 'puma', '~> 4.2'
 gem 'pundit'
-gem 'rails', '~> 6.0.2'
+gem 'rails', '~> 6.0.3'
 gem 'rubocop'
 
 group :development, :test do
